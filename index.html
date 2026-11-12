@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>S25 Ultra AI Studio</title>
+  <meta name="theme-color" content="#09090b" />
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Marked for Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Highlight.js for Syntax Highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+  <style>
+    body { background-color: #09090b; color: #f4f4f5; touch-action: pan-y; }
+    canvas { touch-action: none; }
+    pre code { border-radius: 0.5rem; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="flex flex-col h-[100dvh] overflow-hidden">
+
+  <!-- Header -->
+  <header class="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur z-20">
+    <div class="flex items-center gap-2">
+      <span class="text-xl font-bold bg-gradient-to-r from-cyan-400 to-indigo-500 bg-clip-text text-transparent">Galaxy AI Studio</span>
+      <span id="active-mode-badge" class="text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700">General</span>
+    </div>
+    <button onclick="openSettings()" class="text-xs text-zinc-400 hover:text-white px-2 py-1 rounded bg-zinc-900 border border-zinc-800">
+      🔑 API Key
+    </button>
+  </header>
+
+  <!-- Navigation Modes -->
+  <div class="flex border-b border-zinc-800 bg-zinc-950 px-2 py-1 gap-1 overflow-x-auto no-scrollbar">
+    <button onclick="setMode('general')" id="tab-general" class="mode-tab px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-800 text-white">💬 Chat</button>
+    <button onclick="setMode('coder')" id="tab-coder" class="mode-tab px-3 py-1.5 text-xs font-medium rounded-lg text-zinc-400 hover:text-white">💻 Coding Agent</button>
+    <button onclick="setMode('canvas')" id="tab-canvas" class="mode-tab px-3 py-1.5 text-xs font-medium rounded-lg text-zinc-400 hover:text-white">✏️ S-Pen Canvas</button>
+  </div>
+
+  <!-- Main View Area -->
+  <div class="relative flex-1 overflow-hidden flex flex-col">
+    <!-- Messages Scrollable Container -->
+    <div id="chat-scroller" class="flex-1 overflow-y-auto p-4 space-y-4">
+      <div id="welcome-message" class="text-center my-8 text-zinc-500 text-sm">
+        <p class="font-semibold text-zinc-300">Ready on Samsung Galaxy S25 Ultra</p>
+        <p class="text-xs mt-1">Use the camera, S-Pen canvas, or voice button below to prompt Gemini.</p>
+      </div>
+      <div id="messages" class="space-y-4"></div>
+    </div>
+
+    <!-- S-Pen Canvas Overlay (Hidden by default) -->
+    <div id="canvas-container" class="hidden absolute inset-0 bg-zinc-950 flex flex-col z-10">
+      <div class="flex justify-between items-center px-4 py-2 bg-zinc-900 border-b border-zinc-800 text-xs">
+        <span class="text-zinc-400 font-medium">Draw or write with your S-Pen</span>
+        <div class="flex gap-2">
+          <button onclick="clearCanvas()" class="px-2 py-1 rounded bg-zinc-800 text-red-400 hover:bg-zinc-700">Clear</button>
+          <button onclick="confirmCanvasDrawing()" class="px-3 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-500 font-semibold">Attach Sketch</button>
+        </div>
+      </div>
+      <canvas id="spen-canvas" class="flex-1 bg-black cursor-crosshair"></canvas>
+    </div>
+  </div>
+
+  <!-- Attachments Preview Bar -->
+  <div id="preview-bar" class="hidden px-4 py-2 border-t border-zinc-800 bg-zinc-900/50 flex items-center gap-2">
+    <div class="relative inline-block">
+      <img id="image-preview" class="h-14 w-14 object-cover rounded-lg border border-zinc-700" />
+      <button onclick="clearAttachment()" class="absolute -top-1.5 -right-1.5 bg-red-600 rounded-full w-5 h-5 text-xs flex items-center justify-center text-white">✕</button>
+    </div>
+    <span id="preview-label" class="text-xs text-zinc-400">Attached image</span>
+  </div>
+
+  <!-- Bottom Input Bar -->
+  <footer class="p-3 border-t border-zinc-800 bg-zinc-950">
+    <div class="flex items-end gap-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-2 focus-within:border-zinc-700">
+      <!-- Camera Button -->
+      <label class="cursor-pointer p-2 text-zinc-400 hover:text-white rounded-full">
+        📷
+        <input type="file" id="camera-input" accept="image/*" capture="environment" class="hidden" onchange="handleImage(event)" />
+      </label>
+
+      <!-- Voice Button -->
+      <button onclick="toggleVoice()" id="mic-btn" class="p-2 text-zinc-400 hover:text-white rounded-full">
+        🎙️
+      </button>
+
+      <!-- Textarea -->
+      <textarea id="prompt-input" rows="1" placeholder="Type, record, or snap..." 
+        class="flex-1 bg-transparent text-sm resize-none focus:outline-none max-h-32 text-white placeholder-zinc-500 py-1.5 leading-normal"></textarea>
+
+      <!-- Send Button -->
+      <button onclick="sendPrompt()" id="send-btn" class="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold transition disabled:opacity-40">
+        ➤
+      </button>
+    </div>
+  </footer>
+
+  <script>
+    // State management
+    let currentMode = 'general';
+    let attachedBase64 = null;
+    let isDrawing = false;
+    let ctx, canvas;
+
+    const SYSTEM_PROMPTS = {
+      general: "You are an intelligent, helpful AI assistant running on a Samsung Galaxy S25 Ultra. Be concise, precise, and polite.",
+      coder: "You are an elite autonomous Senior Software Engineer & Agent. Write modular, robust, modern, production-grade code. Highlight edge cases, explain trade-offs succinctly, and output clean markdown with code blocks."
+    };
+
+    // Initialize
+    window.addEventListener('DOMContentLoaded', () => {
+      initCanvas();
+      checkApiKey();
+    });
+
+    function checkApiKey() {
+      if (!localStorage.getItem('GEMINI_API_KEY')) {
+        openSettings();
+      }
+    }
+
+    function openSettings() {
+      const current = localStorage.getItem('GEMINI_API_KEY') || '';
+      const key = prompt("Enter your Google AI Studio API Key:", current);
+      if (key !== null && key.trim() !== '') {
+        localStorage.setItem('GEMINI_API_KEY', key.trim());
+      }
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      document.querySelectorAll('.mode-tab').forEach(b => {
+        b.classList.remove('bg-zinc-800', 'text-white');
+        b.classList.add('text-zinc-400');
+      });
+      document.getElementById(`tab-${mode}`).classList.add('bg-zinc-800', 'text-white');
+      document.getElementById('active-mode-badge').innerText = mode.toUpperCase();
+
+      const canvasContainer = document.getElementById('canvas-container');
+      if (mode === 'canvas') {
+        canvasContainer.classList.remove('hidden');
+        resizeCanvas();
+      } else {
+        canvasContainer.classList.add('hidden');
+      }
+    }
+
+    // Canvas / S-Pen Handlers
+    function initCanvas() {
+      canvas = document.getElementById('spen-canvas');
+      ctx = canvas.getContext('2d');
+
+      const start = (e) => {
+        isDrawing = true;
+        const { x, y } = getCanvasPos(e);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+      };
+
+      const draw = (e) => {
+        if (!isDrawing) return;
+        const { x, y } = getCanvasPos(e);
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#38bdf8'; // Cyan accent
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      };
+
+      const stop = () => { isDrawing = false; };
+
+      canvas.addEventListener('mousedown', start);
+      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('mouseup', stop);
+
+      canvas.addEventListener('touchstart', start, { passive: false });
+      canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); }, { passive: false });
+      canvas.addEventListener('touchend', stop);
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height - 40;
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function getCanvasPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    function clearCanvas() {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function confirmCanvasDrawing() {
+      attachedBase64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+      document.getElementById('image-preview').src = 'data:image/jpeg;base64,' + attachedBase64;
+      document.getElementById('preview-bar').classList.remove('hidden');
+      document.getElementById('preview-label').innerText = 'S-Pen Sketch Attached';
+      setMode('general');
+    }
+
+    // Camera & Media Handlers
+    function handleImage(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        attachedBase64 = event.target.result.split(',')[1];
+        document.getElementById('image-preview').src = event.target.result;
+        document.getElementById('preview-bar').classList.remove('hidden');
+        document.getElementById('preview-label').innerText = 'Camera Photo Attached';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearAttachment() {
+      attachedBase64 = null;
+      document.getElementById('preview-bar').classList.add('hidden');
+      document.getElementById('camera-input').value = '';
+    }
+
+    // Voice Dictation
+    function toggleVoice() {
+      const micBtn = document.getElementById('mic-btn');
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+      if (!SpeechRecognition) {
+        alert("Speech Recognition not supported on this browser engine.");
+        return;
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+
+      micBtn.classList.add('text-red-500', 'animate-pulse');
+      recognition.start();
+
+      recognition.onresult = (event) => {
+        const text = event.results[0][0].transcript;
+        const promptInput = document.getElementById('prompt-input');
+        promptInput.value = (promptInput.value ? promptInput.value + ' ' : '') + text;
+      };
+
+      recognition.onspeechend = () => {
+        micBtn.classList.remove('text-red-500', 'animate-pulse');
+        recognition.stop();
+      };
+
+      recognition.onerror = () => {
+        micBtn.classList.remove('text-red-500', 'animate-pulse');
+      };
+    }
+
+    // Gemini API Request
+    async function sendPrompt() {
+      const apiKey = localStorage.getItem('GEMINI_API_KEY');
+      if (!apiKey) {
+        alert("Please set your Google AI Studio API Key first.");
+        openSettings();
+        return;
+      }
+
+      const input = document.getElementById('prompt-input');
+      const text = input.value.trim();
+      if (!text && !attachedBase64) return;
+
+      document.getElementById('welcome-message')?.remove();
+
+      // Append User message
+      appendMessage('user', text, attachedBase64);
+      input.value = '';
+      
+      const payloadImage = attachedBase64;
+      clearAttachment();
+
+      // Placeholder for Assistant response
+      const botMsgId = appendMessage('assistant', 'Thinking...');
+
+      try {
+        const parts = [];
+        if (text) parts.push({ text: text });
+        if (payloadImage) {
+          parts.push({
+            inline_data: {
+              mime_type: "image/jpeg",
+              data: payloadImage
+            }
+          });
+        }
+
+        const systemPrompt = SYSTEM_PROMPTS[currentMode] || SYSTEM_PROMPTS.general;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: parts }],
+            systemInstruction: { parts: [{ text: systemPrompt }] }
+          })
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+
+        const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response received.";
+        updateMessage(botMsgId, aiResponse);
+      } catch (err) {
+        updateMessage(botMsgId, `**Error:** ${err.message}`);
+      }
+    }
+
+    function appendMessage(sender, text, imgBase64 = null) {
+      const id = 'msg-' + Date.now();
+      const container = document.getElementById('messages');
+      const wrapper = document.createElement('div');
+      wrapper.className = sender === 'user' ? 'flex justify-end' : 'flex justify-start';
+
+      const bubble = document.createElement('div');
+      bubble.id = id;
+      bubble.className = sender === 'user' 
+        ? 'max-w-[85%] bg-indigo-600 text-white rounded-2xl rounded-tr-none px-4 py-2.5 text-sm shadow-md'
+        : 'max-w-[90%] bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-2xl rounded-tl-none px-4 py-3 text-sm shadow-md prose prose-invert overflow-x-auto';
+
+      if (imgBase64) {
+        const img = document.createElement('img');
+        img.src = 'data:image/jpeg;base64,' + imgBase64;
+        img.className = 'w-48 rounded-lg mb-2 border border-zinc-700';
+        bubble.appendChild(img);
+      }
+
+      const textNode = document.createElement('div');
+      textNode.className = "msg-content";
+      textNode.innerHTML = sender === 'user' ? text : marked.parse(text);
+      bubble.appendChild(textNode);
+
+      wrapper.appendChild(bubble);
+      container.appendChild(wrapper);
+
+      // Scroll to bottom
+      document.getElementById('chat-scroller').scrollTop = document.getElementById('chat-scroller').scrollHeight;
+      return id;
+    }
+
+    function updateMessage(id, markdownText) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const content = el.querySelector('.msg-content');
+      content.innerHTML = marked.parse(markdownText);
+      content.querySelectorAll('pre code').forEach((block) => {
+        hljs.highlightElement(block);
+      });
+      document.getElementById('chat-scroller').scrollTop = document.getElementById('chat-scroller').scrollHeight;
+    }
+  </script>
+</body>
+</html>
